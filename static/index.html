@@ -72,7 +72,8 @@
     }
 
     function connectWS() {
-      ws = new WebSocket(`ws://${location.host}/ws`);
+      const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+      ws = new WebSocket(`${protocol}//${location.host}/ws`);
 
       ws.onopen = () => {
         status.textContent = "Connected — detecting landmarks...";
