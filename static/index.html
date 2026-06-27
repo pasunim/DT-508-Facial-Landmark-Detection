@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Face Landmark Detection</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #111;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      color: #fff;
+      font-family: sans-serif;
+    }
+
+    #container {
+      position: relative;
+    }
+
+    video {
+      display: block;
+      transform: scaleX(-1);
+    }
+
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      transform: scaleX(-1);
+    }
+
+    #status {
+      margin-top: 12px;
+      font-size: 14px;
+      color: #aaa;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="container">
+    <video id="video" width="800" height="600" autoplay playsinline></video>
+    <canvas id="canvas" width="800" height="600"></canvas>
+  </div>
+  <div id="status">Connecting...</div>
+
+  <script>
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    const status = document.getElementById("status");
+
+    const LANDMARK_COLOR = "rgba(0, 255, 80, 1.0)";
+    const LINE_COLOR = "rgba(0, 255, 80, 0.4)";
+
+    let ws = null;
+    let processing = false;
+
+    async function startCamera() {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 800, height: 600 } });
+      video.srcObject = stream;
+      await new Promise(r => video.onloadedmetadata = r);
+    }
+
+    function connectWS() {
+      ws = new WebSocket(`ws://${location.host}/ws`);
+
+      ws.onopen = () => {
+        status.textContent = "Connected — detecting landmarks...";
+        requestAnimationFrame(sendFrame);
+      };
+
+      ws.onmessage = (event) => {
+        const result = JSON.parse(event.data);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        if (result.faces && result.faces.length > 0) {
+          const { landmarks } = result.faces[0];
+          const connections = result.connections;
+          const W = canvas.width;
+          const H = canvas.height;
+
+          const drawConnections = (conns, color) => {
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 0.8;
+            ctx.beginPath();
+            for (const [s, e] of conns) {
+              ctx.moveTo(landmarks[s].x * W, landmarks[s].y * H);
+              ctx.lineTo(landmarks[e].x * W, landmarks[e].y * H);
+            }
+            ctx.stroke();
+          };
+
+          drawConnections(connections.tesselation, "rgba(0,255,80,0.15)");
+          drawConnections(connections.contours, "rgba(0,255,80,0.9)");
+          drawConnections(connections.left_iris, "rgba(0,255,80,1.0)");
+          drawConnections(connections.right_iris, "rgba(0,255,80,1.0)");
+
+          ctx.fillStyle = LANDMARK_COLOR;
+          for (const lm of landmarks) {
+            ctx.beginPath();
+            ctx.arc(lm.x * W, lm.y * H, 1, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+
+        processing = false;
+      };
+
+      ws.onerror = () => { status.textContent = "WebSocket error"; };
+      ws.onclose = () => { status.textContent = "Disconnected — retrying..."; setTimeout(connectWS, 2000); };
+    }
+
+    const offscreen = document.createElement("canvas");
+    offscreen.width = 800;
+    offscreen.height = 600;
+    const offCtx = offscreen.getContext("2d");
+
+    function sendFrame() {
+      if (ws && ws.readyState === WebSocket.OPEN && !processing) {
+        offCtx.drawImage(video, 0, 0, 800, 600);
+        const image = offscreen.toDataURL("image/jpeg", 0.7);
+        ws.send(JSON.stringify({ image }));
+        processing = true;
+      }
+      requestAnimationFrame(sendFrame);
+    }
+
+    (async () => {
+      await startCamera();
+      connectWS();
+    })();
+  </script>
+</body>
+
+</html>
