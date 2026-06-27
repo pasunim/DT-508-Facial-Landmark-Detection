@@ -9,10 +9,18 @@ VisionTaskRunningMode = mp.tasks.vision.RunningMode
 MODEL_PATH = "face_landmarker.task"
 
 CONNECTIONS = {
-    "tesselation": [(c.start, c.end) for c in FaceLandmarksConnections.FACE_LANDMARKS_TESSELATION],
-    "contours": [(c.start, c.end) for c in FaceLandmarksConnections.FACE_LANDMARKS_CONTOURS],
-    "left_iris": [(c.start, c.end) for c in FaceLandmarksConnections.FACE_LANDMARKS_LEFT_IRIS],
-    "right_iris": [(c.start, c.end) for c in FaceLandmarksConnections.FACE_LANDMARKS_RIGHT_IRIS],
+    "tesselation": [
+        (c.start, c.end) for c in FaceLandmarksConnections.FACE_LANDMARKS_TESSELATION
+    ],
+    "contours": [
+        (c.start, c.end) for c in FaceLandmarksConnections.FACE_LANDMARKS_CONTOURS
+    ],
+    "left_iris": [
+        (c.start, c.end) for c in FaceLandmarksConnections.FACE_LANDMARKS_LEFT_IRIS
+    ],
+    "right_iris": [
+        (c.start, c.end) for c in FaceLandmarksConnections.FACE_LANDMARKS_RIGHT_IRIS
+    ],
 }
 
 

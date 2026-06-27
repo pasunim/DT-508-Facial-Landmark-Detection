@@ -43,15 +43,84 @@
       font-size: 14px;
       color: #aaa;
     }
+
+    #controls {
+      margin-top: 16px;
+      display: flex;
+      gap: 24px;
+      align-items: center;
+      background: #1e1e1e;
+      padding: 12px 20px;
+      border-radius: 10px;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #aaa;
+    }
+
+    .control-group label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #888;
+    }
+
+    input[type="color"] {
+      width: 40px;
+      height: 32px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      background: none;
+      padding: 0;
+    }
+
+    input[type="range"] {
+      width: 100px;
+      accent-color: #0f0;
+    }
+
+    .range-val {
+      font-size: 12px;
+      color: #ccc;
+      min-width: 28px;
+      text-align: center;
+    }
   </style>
 </head>
 
 <body>
   <div id="container">
-    <video id="video" width="800" height="600" autoplay playsinline></video>
-    <canvas id="canvas" width="800" height="600"></canvas>
+    <video id="video" width="1024" height="768" autoplay playsinline></video>
+    <canvas id="canvas" width="1024" height="768"></canvas>
   </div>
   <div id="status">Connecting...</div>
+
+  <div id="controls">
+    <div class="control-group">
+      <label>สีเส้น</label>
+      <input type="color" id="lineColor" value="#00ff50" title="เลือกสีเส้น" />
+    </div>
+    <div class="control-group">
+      <label>ความหนา</label>
+      <div style="display:flex;align-items:center;gap:8px">
+        <input type="range" id="lineWidth" min="0.5" max="5" step="0.5" value="1" />
+        <span class="range-val" id="lineWidthVal">1</span>
+      </div>
+    </div>
+    <div class="control-group">
+      <label>ขนาด Dot</label>
+      <div style="display:flex;align-items:center;gap:8px">
+        <input type="range" id="dotSize" min="0.5" max="4" step="0.5" value="1" />
+        <span class="range-val" id="dotSizeVal">1</span>
+      </div>
+    </div>
+  </div>
 
   <script>
     const video = document.getElementById("video");
@@ -59,14 +128,32 @@
     const ctx = canvas.getContext("2d");
     const status = document.getElementById("status");
 
-    const LANDMARK_COLOR = "rgba(0, 255, 80, 1.0)";
-    const LINE_COLOR = "rgba(0, 255, 80, 0.4)";
+    const lineColorPicker = document.getElementById("lineColor");
+    const lineWidthSlider = document.getElementById("lineWidth");
+    const lineWidthVal = document.getElementById("lineWidthVal");
+    const dotSizeSlider = document.getElementById("dotSize");
+    const dotSizeVal = document.getElementById("dotSizeVal");
+
+    lineWidthSlider.addEventListener("input", () => { lineWidthVal.textContent = lineWidthSlider.value; });
+    dotSizeSlider.addEventListener("input", () => { dotSizeVal.textContent = dotSizeSlider.value; });
+
+    function hexToRgb(hex) {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      return { r, g, b };
+    }
+
+    function getColor(alpha) {
+      const { r, g, b } = hexToRgb(lineColorPicker.value);
+      return `rgba(${r},${g},${b},${alpha})`;
+    }
 
     let ws = null;
     let processing = false;
 
     async function startCamera() {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 800, height: 600 } });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1024, height: 768 } });
       video.srcObject = stream;
       await new Promise(r => video.onloadedmetadata = r);
     }
@@ -90,9 +177,12 @@
           const W = canvas.width;
           const H = canvas.height;
 
-          const drawConnections = (conns, color) => {
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 0.8;
+          const lw = parseFloat(lineWidthSlider.value);
+          const ds = parseFloat(dotSizeSlider.value);
+
+          const drawConnections = (conns, alpha) => {
+            ctx.strokeStyle = getColor(alpha);
+            ctx.lineWidth = lw;
             ctx.beginPath();
             for (const [s, e] of conns) {
               ctx.moveTo(landmarks[s].x * W, landmarks[s].y * H);
@@ -101,15 +191,15 @@
             ctx.stroke();
           };
 
-          drawConnections(connections.tesselation, "rgba(0,255,80,0.15)");
-          drawConnections(connections.contours, "rgba(0,255,80,0.9)");
-          drawConnections(connections.left_iris, "rgba(0,255,80,1.0)");
-          drawConnections(connections.right_iris, "rgba(0,255,80,1.0)");
+          drawConnections(connections.tesselation, 0.15);
+          drawConnections(connections.contours, 0.9);
+          drawConnections(connections.left_iris, 1.0);
+          drawConnections(connections.right_iris, 1.0);
 
-          ctx.fillStyle = LANDMARK_COLOR;
+          ctx.fillStyle = getColor(1.0);
           for (const lm of landmarks) {
             ctx.beginPath();
-            ctx.arc(lm.x * W, lm.y * H, 1, 0, Math.PI * 2);
+            ctx.arc(lm.x * W, lm.y * H, ds, 0, Math.PI * 2);
             ctx.fill();
           }
         }
@@ -122,13 +212,13 @@
     }
 
     const offscreen = document.createElement("canvas");
-    offscreen.width = 800;
-    offscreen.height = 600;
+    offscreen.width = 1024;
+    offscreen.height = 768;
     const offCtx = offscreen.getContext("2d");
 
     function sendFrame() {
       if (ws && ws.readyState === WebSocket.OPEN && !processing) {
-        offCtx.drawImage(video, 0, 0, 800, 600);
+        offCtx.drawImage(video, 0, 0, 1024, 768);
         const image = offscreen.toDataURL("image/jpeg", 0.7);
         ws.send(JSON.stringify({ image }));
         processing = true;
